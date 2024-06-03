@@ -1,11 +1,13 @@
-from flask import Blueprint, render_template, flash, redirect, session, request
+from flask import Blueprint, render_template, flash, redirect, session, request, url_for
 from flask_login import login_user, current_user, logout_user, login_required
-from flask_request_validator import PATH, FORM, GET, Param, validate_params, Enum, ValidRequest
+from flask_request_validator import FORM, GET, Param, validate_params, ValidRequest
+
 from sqlalchemy import func
+from sqlalchemy.sql import exists
 
 from .models import db, User, Room, Option, Vote, RoomParticipant
 from . import login_manager
-from .decorators import admin_required, is_participant
+from .decorators import admin_required, is_participant, was_participant
 from .utils import generate_room_code
 
 import os
@@ -27,7 +29,10 @@ def load_user(user_id):
 
 @main.route('/')
 def index():
-    return render_template('index.html')
+    if current_user.is_authenticated:
+        return redirect(url_for('main.rooms'))
+    else:
+        return render_template('index.html', user=current_user)
 
 #-----
 
@@ -49,17 +54,17 @@ def signUp(valid: ValidRequest):
         assert form['adminPasscode'] == ADMIN_PASSCODE
     except:
         flash('Invalid admin passcode :(', 'error')
-        return redirect('/', code=401)
+        return redirect(url_for('main.index'))
 
     # Check for existing username in the database
     if User.query.filter_by(username=form['new-username']).first():
         flash('Username already exists :(', 'error')
-        return redirect('/', code=409)
+        return redirect(url_for('main.index'))
     
     # Check if password is at least 6 characters long
     if len(form['new-password']) < 6:
         flash('Password must be at least 6 characters long :(', 'error')
-        return redirect('/', code=422)
+        return redirect(url_for('main.index'))
 
     # Define roles based on passcodes
     is_admin = form['coAdminPasscode'] == CO_ADMIN_PASSCODE if form['coAdminPasscode'] else False
@@ -77,11 +82,11 @@ def signUp(valid: ValidRequest):
     try:
         db.session.commit()
         flash('User successfully created!', 'success')
-        return redirect('/', code=201)
+        return redirect(url_for('main.index'))
     except Exception as e:
         db.session.rollback()
         flash('An error occurred while creating the user :(', 'error')
-        return redirect('/', code=500)
+        return redirect(url_for('main.index'))
 
 #-----
 
@@ -100,12 +105,12 @@ def login(valid: ValidRequest):
 
     if not user or not user.check_password(form['password']):
         flash('Invalid username or password :(', 'error')
-        return redirect('/', code=401)
+        return redirect(url_for('main.index'))
 
     # Log the user in
     login_user(user)
     flash('Logged in successfully!', 'success')
-    return redirect('/rooms', code=200)
+    return redirect(url_for('main.rooms'))
 
 #-----
 
@@ -115,21 +120,52 @@ def logout():
     logout_user()
     session.clear()
     flash('Logged out successfully!', 'success')
-    return redirect('/', code=200)
+    return redirect(url_for('main.index'))
 
 #-------------------
 
 @main.route('/rooms', methods=['GET'])
 @login_required
-def rooms():
-    # Get list of active rooms with the creator's name
+@validate_params(
+    Param('page', GET, int, required=False, default=1)
+)
+def rooms(valid: ValidRequest):
+
+    # Check if the page number is valid
+    try:
+        params = valid.get_params()
+        current_page = max(1, params.get('page', 1))
+        
+        total_rooms = db.session.query(Room).count()
+        total_pages = max(1, (total_rooms + 9) // 10)
+        assert current_page <= total_pages
+
+    except Exception as e:
+        print(e)
+        flash('Invalid page number :(', 'error')
+        return redirect(url_for('main.rooms', page=1))
+    
+    # Pages to show
+    start_page = max(1, current_page - 1)
+    end_page = min(total_pages, current_page + 1)
+    pages_to_show = list(range(start_page, end_page + 1))
+
+    # Get list of rooms with the creator's name (pagination)
     roomList = db.session.query(
         Room.room_code,
         User.username.label('creator_name'),
         Room.date_created,
-        Room.number_of_players
-    ).join(User, Room.creator_id == User.id).filter(Room.status == True).order_by(Room.date_created.desc()).all()
-    return render_template('rooms.html', user=current_user, roomList=roomList)
+        Room.number_of_players,
+        Room.status,
+        exists().where(
+            db.and_(
+                RoomParticipant.room_id == Room.id,
+                RoomParticipant.user_id == current_user.id
+            )
+        ).label('is_participant')
+    ).join(User, Room.creator_id == User.id).order_by(Room.date_created.desc()).limit(10).offset((current_page - 1) * 10).all()
+        
+    return render_template('rooms.html', user=current_user, roomList=roomList, pages_to_show=pages_to_show, current_page=current_page, total_pages=total_pages)
 
 #-----
 
@@ -139,7 +175,8 @@ def rooms():
 @validate_params(
     Param('number_of_players', FORM, int, required=True),
     Param('starting_points', FORM, int, required=False, default=100),
-    Param('deduction_points_per_option', FORM, int, required=False, default=25)
+    Param('deduction_points_per_option', FORM, int, required=False, default=25),
+    Param('blind', FORM, bool, required=False, default=True)
 )
 def createRoom(valid: ValidRequest):
 
@@ -149,12 +186,12 @@ def createRoom(valid: ValidRequest):
     # Check if the number of players is valid
     if form['number_of_players'] < 3 or form['number_of_players'] > 20:
         flash('Number of players must be between 3 and 20 :(', 'error')
-        return redirect('/rooms', code=422)
+        return redirect(url_for('main.rooms'))
     
     # Ensure that the starting points are greater than the deduction points per option
     if form['starting_points'] < form['deduction_points_per_option']:
         flash('Starting points must be greater than the deduction points per option :(', 'error')
-        return redirect('/rooms', code=422)
+        return redirect(url_for('main.rooms'))
 
     # Create a new room
     new_room = Room(
@@ -162,7 +199,8 @@ def createRoom(valid: ValidRequest):
         room_code=generate_room_code(6),
         number_of_players=form['number_of_players'],
         starting_points=form['starting_points'],
-        deduction_points_per_option=form['deduction_points_per_option']
+        deduction_points_per_option=form['deduction_points_per_option'],
+        blind=form['blind']
     )
 
     # Add the new room to the database
@@ -170,12 +208,12 @@ def createRoom(valid: ValidRequest):
     try:
         db.session.commit()
         # Get the new room's id
-        new_room_id = db.session.query(Room.id).filter_by(room_code=new_room.room_code).first()
+        new_room_id = db.session.query(Room.id).filter_by(room_code=new_room.room_code).first()[0]
         flash('Room successfully created!', 'success')
     except Exception as e:
         db.session.rollback()
         flash('An error occurred while creating the room :(', 'error')
-        return redirect('/rooms', code=500)
+        return redirect(url_for('main.rooms'))
     
     # Add the user to the room
     new_participant = RoomParticipant(
@@ -191,11 +229,11 @@ def createRoom(valid: ValidRequest):
         db.session.commit()
         flash(f'Joined room {new_room.room_code}!', 'success')
         flash('You are the room admin!', 'info')
-        return redirect(f'/rooms/{new_room.room_code}/options', code=201)
-    except Exception as e:
+        return redirect(url_for('main.options', room_code=new_room.room_code))
+    except Exception as e:#???
         db.session.rollback()
         flash(f'Couldn\'t join room {new_room.room_code} :(', 'error')
-        return redirect('/rooms', code=500)
+        return redirect(url_for('main.rooms'))
 
 #-----
 
@@ -207,7 +245,7 @@ def room(room_code):
     room_exists = db.session.query(Room).filter_by(room_code=room_code, status=True).first()
     if not room_exists:
         flash('Room not found :(', 'error')
-        return redirect('/rooms', code=404)
+        return redirect(url_for('main.rooms'))
     
     # Add the user to the room if not already present
     current_participants = db.session.query(RoomParticipant).filter_by(room_id=room_exists.id).all()
@@ -217,13 +255,13 @@ def room(room_code):
         total_participants = len(current_participants)
         if total_participants >= room_exists.number_of_players:
             flash(f'Room {room_code} is full :(', 'error')
-            return redirect('/rooms', code=403)
+            return redirect(url_for('main.rooms'))
         
         # Add the user to the room
         new_participant = RoomParticipant(
             room_id=room_exists.id,
             user_id=current_user.id,
-            is_room_admin=True if total_participants == 0 else False,
+            is_room_admin=True if room_exists.creator_id == current_user.id else False,
             points=room_exists.starting_points
         )
 
@@ -232,15 +270,15 @@ def room(room_code):
         try:
             db.session.commit()
             flash(f'Joined room {room_code}!', 'success')
-            flash('You are the room admin!', 'info') if total_participants == 0 else None
-            return redirect(f'/rooms/{room_code}/options', code=201)
+            flash('You are the room admin!', 'info') if room_exists.creator_id == current_user.id else None
+            return redirect(url_for('main.options', room_code=room_code))
         except Exception as e:
             db.session.rollback()
             flash(f'Couldn\'t join room {room_code} :(', 'error')
-            return redirect('/rooms', code=500)
+            return redirect(url_for('main.rooms'))
     
     else:
-        return redirect(f'/rooms/{room_code}/options', code=200)
+        return redirect(url_for('main.options', room_code=room_code))
 
 #-----
 
@@ -248,6 +286,11 @@ def room(room_code):
 @login_required
 @is_participant
 def options(room_code, room):
+
+    # Check if options have already been submitted
+    options_submitted = db.session.query(Option).filter_by(room_id=room.id, suggested_by=current_user.id).first()
+    if options_submitted:
+        return redirect(url_for('main.waitingRoom', room_code=room_code))
 
     # Set number of option boxes to display
     num_option_boxes = room.starting_points // room.deduction_points_per_option
@@ -274,7 +317,7 @@ def addOption(valid: ValidRequest, room_code, room):
     # Ensure that the number of options - 1 x deduction points is less than the starting points
     if (len(options) - 1) * room.deduction_points_per_option > room.starting_points:
         flash('Too many options specified :(', 'error')
-        return redirect(f'/rooms/{room_code}/options', code=422)
+        return redirect(url_for('main.options', room_code=room_code))
 
     # Create new options
     for option in options:
@@ -295,11 +338,11 @@ def addOption(valid: ValidRequest, room_code, room):
     try:
         db.session.commit()
         flash('Option(s) successfully added!', 'success')
-        return redirect(f'/rooms/{room_code}/waitingRoom', code=201)
+        return redirect(url_for('main.waitingRoom', room_code=room_code))
     except Exception as e:
         db.session.rollback()
         flash('An error occurred while adding the options :(', 'error')
-        return redirect(f'/rooms/{room_code}/options', code=500)
+        return redirect(url_for('main.options', room_code=room_code))
 
 #-----
 
@@ -314,7 +357,7 @@ def waitingRoom(room_code, room):
     if options_submitted < room.number_of_players:
         return render_template('waiting.html', user=current_user, room=room, participants_left=room.number_of_players - options_submitted, waitType='options')
     else:
-        return redirect(f'/rooms/{room_code}/voting', code=200)
+        return redirect(url_for('main.voting', room_code=room_code))
 
 #-----
 
@@ -327,7 +370,12 @@ def voting(room_code, room):
     options_submitted = db.session.query(func.count(Option.suggested_by.distinct())).filter_by(room_id=room.id).scalar()
     if options_submitted < room.number_of_players:
         flash('All participants have not submitted options yet :(', 'error')
-        return redirect(f'/rooms/{room_code}/waitingRoom', code=422)
+        return redirect(url_for('main.waitingRoom', room_code=room_code))
+
+    # Check if the user has already voted
+    votes_submitted = db.session.query(Vote).filter_by(room_id=room.id, voter_id=current_user.id).first()
+    if votes_submitted:
+        return redirect(url_for('main.waitingResults', room_code=room_code))
 
     # Get the options to vote on
     options = db.session.query(Option).filter_by(room_id=room.id).order_by(Option.option_text).all()
@@ -340,8 +388,25 @@ def voting(room_code, room):
             own_options.append(option)
         else:
             other_options.append(option)
+    
+    # Get the user's current points
+    current_participant = db.session.query(RoomParticipant).filter_by(room_id=room.id, user_id=current_user.id).first()
 
-    return render_template('voting.html', user=current_user, room=room, own_options=own_options, other_options=other_options)
+    # Placeholder for the user's self votes
+    default_self_points = int(current_participant.points / 2 // len(own_options))
+    default_current_points = int(current_participant.points - (default_self_points * len(own_options)))
+
+    return render_template(
+        'voting.html',
+        user=current_user,
+        participant=current_participant,
+        room=room,
+        own_options=own_options,
+        other_options=other_options,
+        default_self_points=default_self_points,
+        default_current_points=default_current_points,
+        len_own_options=len(own_options)
+    )
 
 #-----
 
@@ -361,18 +426,16 @@ def submitVotes(room_code, room):
                 option_id = int(option_key.split('_')[1])
                 votes[option_id] = int(points)
                 assert votes[option_id] >= 0
-            except:
+            except Exception as e:
                 flash('Invalid vote :(', 'error')
-                return redirect(f'/rooms/{room_code}/voting', code=422)
+                return redirect(url_for('main.voting', room_code=room_code))
     
     # Get the options to vote on
     options = db.session.query(Option).filter_by(room_id=room.id).all()
     optionIds = [option.id for option in options]
     
     # Remove any votes for options that do not exist
-    for option_id in list(votes.keys()):
-        if option_id not in optionIds:
-            votes.pop(option_id)
+    votes = {option_id: points for option_id, points in votes.items() if option_id in optionIds}
 
     # Current participant object
     current_participant = db.session.query(RoomParticipant).filter_by(room_id=room.id, user_id=current_user.id).first()
@@ -380,7 +443,7 @@ def submitVotes(room_code, room):
     # Ensure that the total points allocated is less than the user's current points
     if sum(votes.values()) > current_participant.points:
         flash('Total points allocated exceeds your current points :(', 'error')
-        return redirect(f'/rooms/{room_code}/voting', code=422)
+        return redirect(url_for('main.voting', room_code=room_code))
     
     # Ensure that the user has not voted on their own options with more than 50% of their points
     self_points = 0
@@ -390,7 +453,7 @@ def submitVotes(room_code, room):
     
     if self_points > current_participant.points // 2:
         flash('You cannot allocate more than 50% of your points to your own options :(', 'error')
-        return redirect(f'/rooms/{room_code}/voting', code=422)
+        return redirect(url_for('main.voting', room_code=room_code))
     
     # Create new votes
     for option in options:
@@ -409,18 +472,18 @@ def submitVotes(room_code, room):
 
     # Add the vote points to the options
     for option_id, points in votes.items():
-        option = db.session.query(Option).filter_by(id=option.id).with_for_update().one()
+        option = db.session.query(Option).filter_by(id=option_id).with_for_update().one()
         option.total_points += points
 
     # Commit the changes
     try:
         db.session.commit()
         flash('Votes successfully submitted!', 'success')
-        return redirect(f'/rooms/{room_code}/waitingResults', code=201)
+        return redirect(url_for('main.waitingResults', room_code=room_code))
     except Exception as e:
         db.session.rollback()
         flash('An error occurred while submitting the votes :(', 'error')
-        return redirect(f'/rooms/{room_code}/voting', code=500)
+        return redirect(url_for('main.voting', room_code=room_code))
     
 #-----
 
@@ -432,9 +495,9 @@ def waitingResults(room_code, room):
     # Count unique number of participants who have submitted votes
     votes_submitted = db.session.query(func.count(Vote.voter_id.distinct())).filter_by(room_id=room.id).scalar()
     if votes_submitted < room.number_of_players:
-        return render_template('waitingResults.html', user=current_user, room=room, participants_left=room.number_of_players - votes_submitted)
+        return render_template('waiting.html', user=current_user, room=room, participants_left=room.number_of_players - votes_submitted, waitType='votes')
     else:
-        return redirect(f'/rooms/{room_code}/results', code=200)
+        return redirect(url_for('main.results', room_code=room_code))
     
 #-----
 
@@ -447,16 +510,21 @@ def results(room_code, room):
     votes_submitted = db.session.query(func.count(Vote.voter_id.distinct())).filter_by(room_id=room.id).scalar()
     if votes_submitted < room.number_of_players:
         flash('All participants have not submitted votes yet :(', 'error')
-        return redirect(f'/rooms/{room_code}/waitingResults', code=422)
+        return redirect(url_for('main.waitingResults', room_code=room_code))
     
     # Get the options
-    options = db.session.query(Option).filter_by(room_id=room.id).order_by(Option.total_points.desc()).all()
+    resultList = db.session.query(
+        Option.option_text,
+        Option.total_points,
+        Option.suggested_by,
+        User.username.label('suggested_by_name')
+    ).join(User, Option.suggested_by == User.id).filter(Option.room_id == room.id).order_by(Option.total_points.desc()).all()
 
     # Add winner option to the room if not already present
     room = db.session.query(Room).filter_by(room_code=room_code).with_for_update().one()
     if not room.result_announced:
         room.result_announced = True
-        room.winner_option = max(options, key=lambda option: option.total_points).option_text
+        room.winner_option = max(resultList, key=lambda option: option.total_points).option_text
         
         try:
             db.session.commit()
@@ -464,6 +532,52 @@ def results(room_code, room):
         except Exception as e:
             db.session.rollback()
             flash('An error occurred while announcing the results :(', 'error')
-            return redirect(f'/rooms/{room_code}/results', code=500)
+            return redirect(url_for('main.results', room_code=room_code))
 
-    return render_template('results.html', user=current_user, room=room, options=options) #RUNOFF IMPLEMENTATION
+    return render_template('results.html', user=current_user, room=room, resultList=resultList)
+
+#-----
+
+@main.route('/rooms/<room_code>/close', methods=['POST'])
+@login_required
+@admin_required
+@is_participant
+def closeRoom(room_code, room):
+
+    # Ensure that user is the room admin
+    if room.creator_id != current_user.id:
+        flash('You are not the room admin :(', 'error')
+        return redirect(url_for('main.results', room_code=room_code))
+    
+    # Close the room
+    room = db.session.query(Room).filter_by(room_code=room_code).with_for_update().one()
+    room.status = False
+    
+    # Delete all room votes
+    db.session.query(Vote).filter_by(room_id=room.id).delete()
+    
+    try:
+        db.session.commit()
+        flash('Room successfully closed!', 'success')
+        return redirect(url_for('main.rooms'))
+    except Exception as e:
+        db.session.rollback()
+        flash('An error occurred while closing the room :(', 'error')
+        return redirect(url_for('main.results', room_code=room_code))
+    
+#-----
+
+@main.route('/rooms/<room_code>/closed/results', methods=['GET'])
+@login_required
+@was_participant
+def closedResults(room_code, room):
+    
+    # Get the options
+    resultList = db.session.query(
+        Option.option_text,
+        Option.total_points,
+        Option.suggested_by,
+        User.username.label('suggested_by_name')
+    ).join(User, Option.suggested_by == User.id).filter(Option.room_id == room.id).order_by(Option.total_points.desc()).all()
+
+    return render_template('resultsClosed.html', user=current_user, room=room, resultList=resultList)

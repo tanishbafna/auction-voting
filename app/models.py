@@ -33,8 +33,9 @@ class Room(db.Model):
     creator_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     number_of_players = db.Column(db.Integer, nullable=False)
     starting_points = db.Column(db.Integer, nullable=False, default=100)
+    blind = db.Column(db.Boolean, nullable=False, default=True)
     deduction_points_per_option = db.Column(db.Integer, nullable=False, default=25)
-    status = db.Column(db.Boolean,  nullable=False, default=True)
+    status = db.Column(db.Boolean, nullable=False, default=True)
     winner_option = db.Column(db.String(200), nullable=True, default=None)
     result_announced = db.Column(db.Boolean, nullable=False, default=False)
 
