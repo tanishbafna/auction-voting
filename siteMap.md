@@ -25,50 +25,50 @@
         - Enter deduction points for each added option
         - POST request to `/rooms/create`
     - Join room
-        - Enter room ID
-        - GET request to `/rooms/<str:roomId>`
+        - Enter Room Code
+        - GET request to `/rooms/<room_code>`
 
 - Create Room (`/rooms/create`) [POST, @login, @coAdmin]
     - Create new room in database if user has permissions to create room
     - Give user admin access to room
     - Add player information to room database
-    - Redirect to `/rooms/<str:roomId>/options`
+    - Redirect to `/rooms/<room_code>/options`
 
-- Room (`/rooms/<str:roomId>`) [GET, @login]
+- Room (`/rooms/<room_code>`) [GET, @login]
     - Allow if player capacity is not full, else redirect to `/rooms`
     - Add player information to room database if player is not already in room
-    - Redirect to `/rooms/<str:roomId>/options`
+    - Redirect to `/rooms/<room_code>/options`
 
-- Add Options (`/rooms/<str:roomId>/options`) [GET, @login, @roomAccess]
+- Add Options (`/rooms/<room_code>/options`) [GET, @login, @roomAccess]
     - View Room Info
-        - Room ID
+        - Room Code
         - Number of Players
         - Starting Points
         - Deduction Points
     - Option Form
-        - Enter number of options to add
+        - Enter number of options to add (max 3)
         - Reduce points by deduction points for each added option
         - Enter option names
-        - POST request to `/rooms/<str:roomId>/submitOptions`
+        - POST request to `/rooms/<room_code>/submitOptions`
 
-- Submit Options (`/rooms/<str:roomId>/submitOptions`) [POST, @login, @roomAccess]
+- Submit Options (`/rooms/<room_code>/submitOptions`) [POST, @login, @roomAccess]
     - Add options to room database under user ID
-    - Redirect to `/rooms/<str:roomId>/waitingRoom`
+    - Redirect to `/rooms/<room_code>/waitingRoom`
 
-- Waiting Room (`/rooms/<str:roomId>/waitingRoom`) [GET, @login, @roomAccess]
+- Waiting Room (`/rooms/<room_code>/waitingRoom`) [GET, @login, @roomAccess]
     - View Room Info
-        - Room ID
+        - Room Code
         - Number of Players
         - Starting Points
         - Deduction Points
         - Number of unique players who have entered options
     - View Options Button
-        - GET request to `/rooms/<str:roomId>/vote` if all players have entered options (possible AJAX)
+        - GET request to `/rooms/<room_code>/vote` if all players have entered options (possible AJAX)
 
-- Vote (`/rooms/<str:roomId>/vote`) [GET, @login, @roomAccess]
-    - Redirect to `/rooms/<str:roomId>/waitingRoom` if all players have not entered options
+- Vote (`/rooms/<room_code>/vote`) [GET, @login, @roomAccess]
+    - Redirect to `/rooms/<room_code>/waitingRoom` if all players have not entered options
     - View Room Info
-        - Room ID
+        - Room Code
         - Number of Players
         - Starting Points
         - Deduction Points
@@ -77,32 +77,32 @@
         - Current Points
         - Options entered
     - View Options
-        - Do not show own options
+        - Highlight own options
         - Option names with point value inputs
         - Deduct points from player's total points
-        - POST request to `/rooms/<str:roomId>/submitVote` if current points == 0 and own option points not more than 50% of total points (possible AJAX)
+        - POST request to `/rooms/<room_code>/submitVote` if current points == 0 and own option points not more than 50% of total points (possible AJAX)
 
-- Submit Vote (`/rooms/<str:roomId>/submitVote`) [POST, @login, @roomAccess]
-    - Ensure that points allocated sums up to starting points, else redirect to `/rooms/<str:roomId>/vote`
-    - Ensure that player has not voted for own options with more than 50% of their total points, else redirect to `/rooms/<str:roomId>/vote`
-    - Add point allocations to room database under user ID
-    - Redirect to `/rooms/<str:roomId>/waitingResults`
+- Submit Vote (`/rooms/<room_code>/submitVote`) [POST, @login, @roomAccess]
+    - Ensure that points allocated are no greater than current points (post deduction), else redirect to `/rooms/<room_code>/vote`
+    - Ensure that player has not voted for own options with more than 50% of their current points, else redirect to `/rooms/<room_code>/vote`
+    - Add votes to option database
+    - Redirect to `/rooms/<room_code>/waitingResults`
 
-- Waiting Results (`/rooms/<str:roomId>/waitingResults`) [GET, @login, @roomAccess]
+- Waiting Results (`/rooms/<room_code>/waitingResults`) [GET, @login, @roomAccess]
     - View Room Info
-        - Room ID
+        - Room Code
         - Number of Players
         - Starting Points
         - Deduction Points
         - Number of unique players who have voted
     - View Results Button
-        - GET request to `/rooms/<str:roomId>/results` if all players have voted (possible AJAX)
+        - GET request to `/rooms/<room_code>/results` if all players have voted (possible AJAX)
     
-- Results (`/rooms/<str:roomId>/results`) [GET, @login, @roomAccess]
-    - Redirect to `/rooms/<str:roomId>/waitingResults` if all players have not voted
+- Results (`/rooms/<room_code>/results`) [GET, @login, @roomAccess]
+    - Redirect to `/rooms/<room_code>/waitingResults` if all players have not voted
     - Store winning option in room database
     - View Room Info
-        - Room ID
+        - Room Code
         - Number of Players
         - Starting Points
         - Deduction Points
@@ -116,10 +116,10 @@
         - Highlight winning option
     - End Game Button
         - View only if player is room admin
-        - POST request to `/rooms/<str:roomId>/endGame`
+        - POST request to `/rooms/<room_code>/endGame`
     - Return to rooms button
         - Redirect to `/rooms`
 
-- End Game (`/rooms/<str:roomId>/endGame`) [POST, @login, @roomAccess, @roomAdmin]
+- End Game (`/rooms/<room_code>/endGame`) [POST, @login, @roomAccess, @roomAdmin]
     - Delete room option from database if player is room admin
     - Redirect to `/rooms`

@@ -9,7 +9,7 @@ class User(db.Model, UserMixin):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), nullable=False)
-    username = db.Column(db.String(100), unique=True, nullable=False)
+    username = db.Column(db.String(20), unique=True, nullable=False)
     password_hash = db.Column(db.String(128), nullable=False)
     is_admin = db.Column(db.Boolean, nullable=False, default=False)
     date_created = db.Column(db.DateTime, nullable=False, default=db.func.current_timestamp())
@@ -35,6 +35,8 @@ class Room(db.Model):
     starting_points = db.Column(db.Integer, nullable=False, default=100)
     deduction_points_per_option = db.Column(db.Integer, nullable=False, default=25)
     status = db.Column(db.Boolean,  nullable=False, default=True)
+    winner_option = db.Column(db.String(200), nullable=True, default=None)
+    result_announced = db.Column(db.Boolean, nullable=False, default=False)
 
     options = db.relationship('Option', backref='room', lazy=True)
     participants = db.relationship('RoomParticipant', backref='room', lazy=True)
@@ -53,6 +55,7 @@ class Vote(db.Model):
     __tablename__ = 'votes'
     id = db.Column(db.Integer, primary_key=True)
     option_id = db.Column(db.Integer, db.ForeignKey('options.id'), nullable=False)
+    room_id = db.Column(db.Integer, db.ForeignKey('rooms.id'), nullable=False)
     voter_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     points_allocated = db.Column(db.Integer, nullable=False, default=0)
 
@@ -61,3 +64,4 @@ class RoomParticipant(db.Model):
     room_id = db.Column(db.Integer, db.ForeignKey('rooms.id'), primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), primary_key=True)
     is_room_admin = db.Column(db.Boolean, nullable=False, default=False)
+    points = db.Column(db.Integer, nullable=False, default=100)
