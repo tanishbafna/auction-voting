@@ -10,7 +10,7 @@ class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), nullable=False)
     username = db.Column(db.String(20), unique=True, nullable=False)
-    password_hash = db.Column(db.String(128), nullable=False)
+    password_hash = db.Column(db.String(512), nullable=False)
     is_admin = db.Column(db.Boolean, nullable=False, default=False)
     date_created = db.Column(db.DateTime, nullable=False, default=db.func.current_timestamp())
 
