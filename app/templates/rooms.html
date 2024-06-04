@@ -1,0 +1,191 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Rooms 
+{% endblock %}
+
+{% block main %}
+
+    <!-- Create Room Button -->
+
+    <div class="container">
+        <div class="row">
+            <div class="col">
+                <!-- Trigger Modal -->
+                {% if user.is_admin %}
+                    <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#createRoomModal" style="margin-top: 22px;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="25" height="25" fill="currentColor" class="bi bi-plus align-middle" viewBox="0 0 16 16">
+                            <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"/>
+                        </svg>Create Room
+                    </button>
+                {% else %}
+                    <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#createRoomModal" style="margin-top: 22px;" disabled>
+                        Create Room
+                    </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal -->
+
+    <div class="modal fade" id="createRoomModal" tabindex="-1" aria-labelledby="createRoomModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="createRoomModalLabel">Create Room</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Form in Modal -->
+                    <form action="/rooms/create" method="post">
+                        <div class="mb-3">
+                            <label for="number_of_players" class="form-label">Number of Players (Max: 20)</label>
+                            <input type="number" class="form-control" id="number_of_players" name="number_of_players" min="3" max="20" value="3" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="starting_points" class="form-label">Starting Points</label>
+                            <input type="number" class="form-control" id="starting_points" name="starting_points" value="100" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="deduction_points_per_option" class="form-label">Deduction Points per Option</label>
+                            <input type="number" class="form-control" id="deduction_points_per_option" name="deduction_points_per_option" value="20" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="blind" class="form-label">Blind Voting</label>
+                            <select class="form-select" id="blind" name="blind" required>
+                                <option value="True" selected>Yes</option>
+                                <option value="False">No</option>     
+                            </select>  
+                        </div>
+                        <button type="submit" class="btn btn-success mt-2">Create Room</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Join Room Input -->
+
+    <div class="container">
+        <div class="row">
+            <div class="col">
+                <form id="joinRoomForm" action="" method="get" onsubmit="setFormAction(event)">
+                    <div class="input-group mb-3" style="margin-top: 22px;">
+                        <input type="text" class="form-control" placeholder="Room Code" id="roomCodeInput" name="room_code" required>
+                        <button class="btn btn-outline-secondary" type="submit">Join Room</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    function setFormAction(event) {
+        event.preventDefault();  // Prevent the default form submission
+        var roomCode = document.getElementById('roomCodeInput').value;
+        var form = document.getElementById('joinRoomForm');
+        form.action = '/rooms/' + roomCode;
+        form.method = 'get';
+        form.submit();
+    }
+    </script>
+
+    <!-- Rooms Table -->
+
+    <br><br>
+    <table class="table table-hover align-table" style="margin-top: 22px;">
+        <thead class="thead-dark">
+        <tr>
+            <th scope="col">Room</th>
+            <th scope="col">Date</th>
+            <th scope="col">Creator</th>
+            <th scope="col">Players</th>
+            <th scope="col">Status</th>
+            <th scope="col">Action</th>
+        </tr>
+        </thead>
+
+        <tbody>
+            {% for room in roomList %}
+                {% if room.status == 1 %}
+                    <tr class="table-success">
+                {% else %}
+                    <tr class="table-danger">
+                {% endif %}
+                    
+                    <td scope="col">
+                        {{ room.room_code }}
+                    </td>
+                    
+                    <td scope="col">
+                        {{ room.date_created }}
+                    </td>
+                        <td scope="col">
+                        {{ room.creator_name }}
+                    </td>
+
+                    <td scope="col">
+                        {{ room.number_of_players }}
+                    </td>
+                    
+                    {% if room.status == 1 %}
+                        <td scope="col">Active</td>
+                        <td scope="col">
+                            <form action="/rooms/{{ room.room_code }}" method="get">
+                                <button type="submit" class="btn btn-outline-dark">Join</button>
+                            </form>
+                        </td>
+                    {% else %}
+                        <td scope="col">Inactive</td>
+                        <td scope="col">
+                            <form action="/rooms/{{ room.room_code }}/closed/results" method="get">
+                                {% if room.is_participant %}
+                                    <button type="submit" class="btn btn-outline-dark">Results</button>
+                                {% else %}
+                                    <button type="submit" class="btn btn-outline-dark" disabled>Results</button>
+                                {% endif %}
+                            </form>
+                        </td>
+                    {% endif %}
+
+                    </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="controls-container" style="overflow: hidden; width: 100%;">
+    
+        <!-- Refresh button -->
+
+        <form action="/rooms" method="get" style="float: left;" class="refresh-form">
+            <button type="submit" class="btn btn-primary mt-0">Refresh</button>
+        </form>
+
+        <!-- Pagination -->
+
+        <nav aria-label="Room navigation" style="float: right;" class="pagination-nav">
+            <ul class="pagination justify-content-end">
+            <li class="page-item {% if current_page <= 1 %} disabled {% endif %}">
+                <a class="page-link" href="/rooms?page={{ current_page - 1 }}" aria-label="Previous">
+                <span aria-hidden="true">&laquo;</span>
+                </a>
+            </li>
+        
+            {% for page in pages_to_show %}
+                <li class="page-item {% if page == current_page %}active{% endif %}">
+                <a class="page-link" href="/rooms?page={{ page }}">{{ page }}</a>
+                </li>
+            {% endfor %}
+        
+            <li class="page-item {% if current_page >= total_pages %}disabled{% endif %}">
+                <a class="page-link" href="/rooms?page={{ current_page + 1 }}" aria-label="Next">
+                <span aria-hidden="true">&raquo;</span>
+                </a>
+            </li>
+            </ul>
+        </nav>
+
+    </div>
+
+{% endblock %}

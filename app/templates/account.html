@@ -1,0 +1,109 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    My Account
+{% endblock %}
+
+{% block main %}
+
+    <!-- Logo -->
+    <div class="d-flex justify-content-center mt-5">
+        <img src="/static/logo.png" alt="ASCII" width="475" height="175">
+    </div>
+
+    <!-- User Info -->
+
+    <br><br>
+    <div class="d-flex justify-content-center mt-2">
+        <h4>Welcome, {{ user.name }}</h4>
+    </div>
+    <br>
+    <div class="d-flex justify-content-center mt-2">
+        <h5>Username: {{ user.username }}</h5>
+    </div>
+    <div class="d-flex justify-content-center mt-2">
+        {% if user.is_admin %}
+            <h5>Room Admin Permission: <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" class="bi bi-check2-circle align-middle ms-2" fill="green" viewBox="0 0 16 16">
+                <path d="M2.5 8a5.5 5.5 0 0 1 8.25-4.764.5.5 0 0 0 .5-.866A6.5 6.5 0 1 0 14.5 8a.5.5 0 0 0-1 0 5.5 5.5 0 1 1-11 0"/>
+                <path d="M15.354 3.354a.5.5 0 0 0-.708-.708L8 9.293 5.354 6.646a.5.5 0 1 0-.708.708l3 3a.5.5 0 0 0 .708 0z"/>
+              </svg></h5>
+        {% else %}
+            <h5>Room Admin Permission: <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" class="bi bi-x-circle-fill align-middle ms-2" fill="red" viewBox="0 0 16 16">
+                <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0M5.354 4.646a.5.5 0 1 0-.708.708L7.293 8l-2.647 2.646a.5.5 0 0 0 .708.708L8 8.707l2.646 2.647a.5.5 0 0 0 .708-.708L8.707 8l2.647-2.646a.5.5 0 0 0-.708-.708L8 7.293z"/>
+              </svg></h5>
+        {% endif %}
+    </div>
+
+    <!-- Change PW -->
+
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-auto">
+                <!-- Trigger Modal -->
+                <button type="submit" class="btn btn-primary me-3" data-bs-toggle="modal" data-bs-target="#changePwModal" style="margin-top: 22px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-key" viewBox="0 0 16 16">
+                        <path d="M0 8a4 4 0 0 1 7.465-2H14a.5.5 0 0 1 .354.146l1.5 1.5a.5.5 0 0 1 0 .708l-1.5 1.5a.5.5 0 0 1-.708 0L13 9.207l-.646.647a.5.5 0 0 1-.708 0L11 9.207l-.646.647a.5.5 0 0 1-.708 0L9 9.207l-.646.647A.5.5 0 0 1 8 10h-.535A4 4 0 0 1 0 8m4-3a3 3 0 1 0 2.712 4.285A.5.5 0 0 1 7.163 9h.63l.853-.854a.5.5 0 0 1 .708 0l.646.647.646-.647a.5.5 0 0 1 .708 0l.646.647.646-.647a.5.5 0 0 1 .708 0l.646.647.793-.793-1-1h-6.63a.5.5 0 0 1-.451-.285A3 3 0 0 0 4 5"/>
+                        <path d="M4 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0"/>
+                    </svg>  Change Password
+                </button>
+            </div>
+            <div class="col-auto">
+                <a href="/logout" class="btn btn-danger" style="margin-top: 22px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-door-closed" viewBox="0 0 16 16">
+                        <path d="M3 2a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v13h1.5a.5.5 0 0 1 0 1h-13a.5.5 0 0 1 0-1H3zm1 13h8V2H4z"/>
+                        <path d="M9 9a1 1 0 1 0 2 0 1 1 0 0 0-2 0"/>
+                    </svg> Log Out
+                </a>
+                </div>
+        </div>
+    </div>
+
+    <!-- Modal -->
+
+    <div class="modal fade" id="changePwModal" tabindex="-1" aria-labelledby="changePwModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="changePwModalLabel">Change Password</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Form in Modal -->
+                    <form action="/account/changePW" method="post">
+                        <div class="mb-3">
+                            <label for="old-password" class="form-label">Old Password</label>
+                            <input type="password" class="form-control" id="old-password" name="old-password" minlength="6" maxlength="128" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="new-password" class="form-label">New Password</label>
+                            <input type="password" class="form-control" id="new-password" name="new-password" minlength="6" maxlength="128" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="confirm-password" class="form-label">Confirm Password</label>
+                            <input type="password" class="form-control" id="confirm-password" name="confirm-password" minlength="6" maxlength="128" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary mt-2">Change Password</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Check if passwords match -->
+    <script>
+        const password = document.getElementById("new-password");
+        const confirm_password = document.getElementById("confirm-password");
+
+        function validatePassword() {
+            if (password.value !== confirm_password.value) {
+                confirm_password.setCustomValidity("Passwords Don't Match");
+            } else {
+                confirm_password.setCustomValidity('');
+            }
+        };
+
+        password.onchange = validatePassword;
+        confirm_password.onkeyup = validatePassword;
+    </script>
+
+{% endblock %}

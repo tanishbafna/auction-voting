@@ -1,0 +1,108 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Voting
+{% endblock %}
+
+{% block main %}
+
+    <!-- Room Information -->
+
+    <div class="container">
+        <div class="row">
+            <div class="col">
+                <h5>Room Code: {{ room.room_code }}</h5>
+                <h6>Number of Players: {{ room.number_of_players }}</h6>
+                <h6>Starting Points: {{ room.starting_points }}</h6>
+                <h6>Deduction Points per Option: {{ room.deduction_points_per_option }}</h6>
+            </div>
+        </div>
+    </div>
+
+    <!-- Voting Form -->
+
+    <br><br>
+    <div class="col-md-6">
+        <div class="points-info" id="remainingPoints">Remaining Points: <span id="pointsDisplay">{{ default_current_points }}</span></div>
+    </div>
+    
+    <form id="votingForm" action="/rooms/{{ room.room_code }}/submitVotes" method="post">
+        <table class="table table-hover" style="margin-top: 22px;">
+            <thead class="thead-dark">
+                <tr>
+                    <th scope="col">No.</th>
+                    <th scope="col">Option</th>
+                    <th scope="col">Points</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for option in own_options %}
+                    <tr class="table-info">
+                        <td scope="col">{{ loop.index }}</td>
+                        <td scope="col">{{ option.option_text }}</td>
+                        <td scope="col">
+                            <input type="number" class="form-control points-input own-option" 
+                                   id="option_{{ option.id }}" 
+                                   name="option_{{ option.id }}" 
+                                   min="0" max="{{ participant.points // 2 }}" 
+                                   value="{{ default_self_points }}" required>
+                        </td>
+                    </tr>
+                {% endfor %}
+                {% for option in other_options %}
+                    <tr>
+                        <td scope="col">{{ loop.index + len_own_options }}</td>
+                        <td scope="col">{{ option.option_text }}</td>
+                        <td scope="col">
+                            <input type="number" class="form-control points-input other-option" 
+                                   id="option_{{ option.id }}" 
+                                   name="option_{{ option.id }}" 
+                                   min="0" max="{{ participant.points }}" required>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <button type="submit" class="btn btn-primary" id="submitVoteButton" disabled>Submit</button>
+    </form>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const inputs = document.querySelectorAll('.points-input');
+            const ownInputs = document.querySelectorAll('.own-option');
+            const pointsDisplay = document.getElementById('pointsDisplay');
+            const submitButton = document.getElementById('submitVoteButton');
+            const totalPoints = {{ participant.points }};
+            let remainingPoints = {{ default_current_points }};
+            
+            function updateRemainingPoints() {
+                let totalUsedPoints = 0;
+                let ownOptionPoints = 0;
+    
+                inputs.forEach(input => {
+                    const points = parseInt(input.value) || 0;
+                    totalUsedPoints += points;
+                    if (input.classList.contains('own-option')) {
+                        ownOptionPoints += points;
+                    }
+                });
+    
+                remainingPoints = totalPoints - totalUsedPoints;
+                pointsDisplay.textContent = remainingPoints;
+    
+                // Check if the total points used is valid and if own option points exceed 50% of total points
+                const isOwnOptionValid = ownOptionPoints <= totalPoints / 2;
+    
+                // Disable the submit button if the remaining points are not zero, or points exceed, or own options exceed 50%
+                submitButton.disabled = remainingPoints !== 0 || remainingPoints < 0 || !isOwnOptionValid;
+            }
+    
+            inputs.forEach(input => {
+                input.addEventListener('input', updateRemainingPoints);
+            });
+    
+            updateRemainingPoints();  // Initial update to set correct state of the submit button
+        });
+    </script>
+
+{% endblock %}

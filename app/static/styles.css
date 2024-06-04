@@ -1,0 +1,69 @@
+.login-container {
+    width: 300px;
+    margin-top: 50px;
+    background: white;
+    padding: 20px;
+    border: 1px solid rgb(232, 230, 230);
+    border-radius: 5px;
+}
+
+.tab-content {
+    height: auto; /* Adjust height automatically based on content */
+}
+
+nav .navbar-brand
+{
+    /* size for brand */
+    font-size: x-large;
+}
+
+main
+{
+    /* scroll horizontally as needed */
+    overflow-x: auto;
+
+}
+
+main img
+{
+    /* constrain images on small screens */
+    max-width: 100%;
+}
+
+.align-table {
+    width: 100%; /* Optional: Ensures the table takes full width of the container */
+}
+
+.align-table th, .align-table td {
+    text-align: center; /* Horizontally center content */
+    vertical-align: middle; /* Vertically center content */
+}
+
+.controls-container {
+    overflow: hidden;
+    width: 100%;
+    line-height: 50px;  /* Adjust the line-height to fit the height of your buttons */
+}
+
+.refresh-form {
+    margin: 0; /* Removes margin from the form if present */
+    padding: 0; /* Ensures no padding is pushing the button down */
+    float: left;
+}
+
+.pagination-nav {
+    margin-top: 8px;
+    float: right;
+}
+
+.refresh-form button, .pagination-nav .page-link {
+    margin: 0;
+    height: 40px;  /* Ensures that all clickable elements have the same height */
+    padding: 5px 10px;  /* Adjust padding to vertically center the text */
+    line-height: 30px;  /* Line height to match the content height */
+    vertical-align: middle; /* Aligns the middle of the elements */
+}
+
+.align-middle {
+    vertical-align: middle; /* Aligns the middle of the elements */
+}

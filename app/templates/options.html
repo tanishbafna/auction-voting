@@ -1,0 +1,101 @@
+{% extends "layout.html" %}
+
+{% block head %}
+    <style>
+        .points-info {
+            font-size: 18px;
+            font-weight: bold;
+        }
+    </style>
+{% endblock %}
+
+{% block title %}
+    Submit Options 
+{% endblock %}
+
+{% block main %}
+
+    <!-- Room Information -->
+
+    <div class="container">
+        <div class="row">
+            <div class="col">
+                <h5>Room Code: {{ room.room_code }}</h5>
+                <h6>Number of Players: {{ room.number_of_players }}</h6>
+                <h6>Starting Points: {{ room.starting_points }}</h6>
+                <h6>Deduction Points per Option: {{ room.deduction_points_per_option }}</h6>
+            </div>
+        </div>
+    </div>
+
+    <!-- Submit Options Form -->
+
+    <br><br>
+    <div class="row">
+        <div class="col-md-6">
+            <!-- Points Info above the form -->
+            <div class="points-info mb-3">Voting Points: <span id="pointsDisplay">100</span></div>
+    
+            <!-- Form for options -->
+            <form id="optionsForm" action="/rooms/{{ room.room_code }}/submitOptions" method="post">
+                <div class="mb-3 d-flex align-items-center">
+                    <label for="numOptions" class="form-label me-2" style="margin-bottom: 0;">Number of Options:</label>
+                    <select class="form-select" style="width: auto;" id="numOptions" name="numOptions" onchange="updateOptions();">
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                    </select>
+                </div>
+                <div id="optionInputs"></div>
+                <button type="submit" class="btn btn-primary mt-3">Submit</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const startingPoints = {{ room.starting_points }};
+        const deductionPerOption = {{ room.deduction_points_per_option }};
+        const num_option_boxes = {{ num_option_boxes }};
+        let currentPoints = startingPoints;
+
+        document.getElementById('numOptions').addEventListener('change', function() {
+            const numOptions = parseInt(this.value);
+            const pointsCost = (numOptions - 1) * deductionPerOption;
+            currentPoints = startingPoints - pointsCost;
+            document.getElementById('pointsDisplay').textContent = currentPoints;
+            renderOptionInputs(numOptions);
+        });
+
+        function renderOptionInputs(numOptions) {
+            const container = document.getElementById('optionInputs');
+            container.innerHTML = ''; // Clear previous inputs
+            for (let i = 1; i <= numOptions; i++) {
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.id = 'option' + i + '_text';
+                input.name = 'option' + i + '_text';
+                input.placeholder = 'Option ' + i;
+                input.className = 'form-control mb-2';
+                input.required = true;
+                container.appendChild(input);
+            }
+        }
+
+        // Initial call to set inputs and disable options based on allowed values
+        function initForm() {
+            const select = document.getElementById('numOptions');
+            for (let i = 3; i > num_option_boxes; i--) {
+                select.options[i - 1].disabled = true;
+            }
+            updateOptions(); // Initial update to set fields
+        }
+
+        function updateOptions() {
+            const selectedValue = parseInt(document.getElementById('numOptions').value);
+            renderOptionInputs(selectedValue);
+        }
+
+        window.onload = initForm;
+    </script>
+
+{% endblock %}
