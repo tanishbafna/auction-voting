@@ -41,6 +41,7 @@ def index():
     Param('name', FORM, str, required=True),
     Param('new-username', FORM, str, required=True),
     Param('new-password', FORM, str, required=True),
+    Param('confirm-password', FORM, str, required=True),
     Param('adminPasscode', FORM, str, required=True),
     Param('coAdminPasscode', FORM, str, required=False),
 )
@@ -65,6 +66,11 @@ def signUp(valid: ValidRequest):
     if len(form['new-password']) < 6:
         flash('Password must be at least 6 characters long :(', 'error')
         return redirect(url_for('main.index'))
+    
+    # Check if the password and confirm password match
+    if form['new-password'] != form['confirm-password']:
+        flash('Passwords do not match :(', 'error')
+        return redirect(url_for('main.index'))
 
     # Define roles based on passcodes
     is_admin = form['coAdminPasscode'] == CO_ADMIN_PASSCODE if form['coAdminPasscode'] else False
@@ -72,7 +78,7 @@ def signUp(valid: ValidRequest):
     # Create new user with hashed password
     new_user = User(
         name=form['name'],
-        username=form['username'],
+        username=form['new-username'],
         password_hash=generate_password_hash(form['new-password']),
         is_admin=is_admin,
     )
@@ -122,6 +128,55 @@ def logout():
     flash('Logged out successfully!', 'success')
     return redirect(url_for('main.index'))
 
+#-----
+
+@main.route('/account', methods=['GET'])
+@login_required
+def account():
+    return render_template('account.html', user=current_user)
+
+#-----
+
+@main.route('/account/changePW', methods=['POST'])
+@login_required
+@validate_params(
+    Param('old-password', FORM, str, required=True),
+    Param('new-password', FORM, str, required=True),
+    Param('confirm-password', FORM, str, required=True)
+)
+def changePW(valid: ValidRequest):
+
+    # Get the parameters from the request
+    form = valid.get_form()
+
+    # Check if the old password is correct
+    if not current_user.check_password(form['old-password']):
+        flash('Incorrect old password :(', 'error')
+        return redirect(url_for('main.account'))
+    
+    # Check if the new password is at least 6 characters long
+    if len(form['new-password']) < 6:
+        flash('New password must be at least 6 characters long :(', 'error')
+        return redirect(url_for('main.account'))
+    
+    # Check if the new password matches the confirm password
+    if form['new-password'] != form['confirm-password']:
+        flash('New password does not match confirm password :(', 'error')
+        return redirect(url_for('main.account'))
+    
+    # Update the user's password
+    current_user.password_hash = generate_password_hash(form['new-password'])
+
+    # Commit the changes
+    try:
+        db.session.commit()
+        flash('Password successfully changed!', 'success')
+        return redirect(url_for('main.account'))
+    except Exception as e:
+        db.session.rollback()
+        flash('An error occurred while changing the password :(', 'error')
+        return redirect(url_for('main.account'))
+
 #-------------------
 
 @main.route('/rooms', methods=['GET'])
@@ -141,7 +196,6 @@ def rooms(valid: ValidRequest):
         assert current_page <= total_pages
 
     except Exception as e:
-        print(e)
         flash('Invalid page number :(', 'error')
         return redirect(url_for('main.rooms', page=1))
     
@@ -353,7 +407,6 @@ def waitingRoom(room_code, room):
 
     # Count unique number of participants who have submitted options
     options_submitted = db.session.query(func.count(Option.suggested_by.distinct())).filter_by(room_id=room.id).scalar()
-    print(options_submitted)
     if options_submitted < room.number_of_players:
         return render_template('waiting.html', user=current_user, room=room, participants_left=room.number_of_players - options_submitted, waitType='options')
     else:
