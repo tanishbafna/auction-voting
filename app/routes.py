@@ -284,7 +284,7 @@ def createRoom(valid: ValidRequest):
         flash(f'Joined room {new_room.room_code}!', 'success')
         flash('You are the room admin!', 'info')
         return redirect(url_for('main.options', room_code=new_room.room_code))
-    except Exception as e:#???
+    except Exception as e:
         db.session.rollback()
         flash(f'Couldn\'t join room {new_room.room_code} :(', 'error')
         return redirect(url_for('main.rooms'))

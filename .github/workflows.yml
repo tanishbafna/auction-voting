@@ -1,0 +1,25 @@
+name: heroku-deploy
+
+on:
+  push:
+    branches: 
+    - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Writing secrects into .env 
+      - name: Copy production env
+        run: | 
+          echo -e '${{secrets.ENV}}' > .env
+          rm -rf .gitignore .gitattributes
+      
+      # Deploy the code
+      - name: Deploy to Heroku
+        uses: akhileshns/heroku-deploy@v3.13.15
+        with:
+          heroku_api_key: ${{secrets.HEROKU_API_KEY}}
+          heroku_app_name: "ascii-voting"
+          heroku_email: "tanishbafna03@gmail.com"
